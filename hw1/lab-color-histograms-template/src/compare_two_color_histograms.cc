@@ -40,79 +40,132 @@ void load(path& p, vector<LuvColorHistogram>& hist_vector, vector<std::string>& 
 	}
 }
 
-void show_images(std::string fileA, std::string fileB){
+void show_images(std::string needle, std::string first, std::string second){
 
 	// load the images
-    Mat imageA = imread(fileA, CV_LOAD_IMAGE_COLOR);
-		Mat imageB = imread(fileB, CV_LOAD_IMAGE_COLOR);
+    Mat imageA = imread(needle, CV_LOAD_IMAGE_COLOR);
+		Mat imageB = imread(first, CV_LOAD_IMAGE_COLOR);
+		Mat imageC = imread(second, CV_LOAD_IMAGE_COLOR);
 
 		// show image A
-    namedWindow( "Image A", WINDOW_AUTOSIZE );
-    imshow( "Image A", imageA );
+    namedWindow( "Needle", WINDOW_AUTOSIZE );
+    imshow( "Needle", imageA );
 
 		// show image B
-		namedWindow( "Image B", WINDOW_AUTOSIZE );
-    imshow( "Image B", imageB );
+		namedWindow( "First", WINDOW_AUTOSIZE );
+    imshow( "First", imageB );
+
+		namedWindow( "Second", WINDOW_AUTOSIZE );
+    imshow( "Second", imageB );
 
 		// wait for things
     waitKey(0);
 }
 
-void compare_hist_vectors(const vector<LuvColorHistogram>& h1, const vector<LuvColorHistogram>& h2, vector<std::string>& filenames){
+void find_two_closest(const LuvColorHistogram& needle, const vector<LuvColorHistogram>& haystack, const vector<std::string>& hayfiles, LuvColorHistogram& first, std::string& first_file, LuvColorHistogram& second, std::string& second_file) {
 
-	vector<LuvColorHistogram>::const_iterator it1= h1.begin();
-	vector<std::string>::const_iterator fn1 = filenames.begin();
+	// iterators which search
+	vector<LuvColorHistogram>::const_iterator searcher = haystack.begin();
+	vector<std::string>::const_iterator files = hayfiles.begin();
 
-	for (; it1 != h1.end(); ++it1, ++fn1){
-		vector<LuvColorHistogram>::const_iterator it2= h2.begin();
-		vector<std::string>::const_iterator fn2 = filenames.begin();
+	// the maximal distance
+	const double distance_max(std::numeric_limits<double>::max());
 
-		// metric for the distance between two images
-		double metric(0);
+	// distance to first or second.
+	double metric;
+	double distance_first = distance_max;
+	double distance_second = distance_max;
 
-		// minimum
-		double min_metric(std::numeric_limits<double>::max());
-		std::string min_fn;
-		LuvColorHistogram min_value;
+	// crawl through the haystack
+	for (; searcher != haystack.end(); ++searcher, ++files){
 
-		for (; it2 != h2.end(); ++it2, ++fn2){
+		// current distance
+		metric = needle.compare(*searcher);
 
-			// Compare metric between h1 and h2
-			metric = it1->compare(*it2);
+		// if we are best than the best distance, shift everything back
+		if(metric < distance_first){
+			// shift 1 -> 2
+			distance_second = distance_first;
+			second = first;
+			second_file = first_file;
 
-			// if the metric is smaller, we can store that.
-			if(metric <= min_metric && it1 != it2){
-				min_metric = metric;
-				min_value = *it2;
-				min_fn = *fn2;
-			}
+			// and make a new 1
+			distance_first = metric;
+			first = *searcher;
+			first_file = *files;
+
+		// if it is still less than the second
+		} else if (metric < distance_second){
+			// make a new 2
+			distance_second = metric;
+			second = *searcher;
+			second_file = *files;
 		}
-
-		// Print filenames and show images
-		cout << *fn1 << " has closest image " << min_fn << endl;
-		show_images(*fn1, min_fn);
 	}
 }
 
+void find_best_grams(const vector<LuvColorHistogram>& train_grams, vector<std::string>& train_files, const vector<LuvColorHistogram>& test_grams, const vector<std::string>& test_files){
+
+	// iterate through the haystack
+	vector<LuvColorHistogram>::const_iterator searcher = train_grams.begin();
+	vector<std::string>::const_iterator files = train_files.begin();
+
+	for (; searcher != train_grams.end(); ++searcher, ++files){
+
+		// the current needle we find the best testing images for
+		LuvColorHistogram needle = *searcher;
+
+		// all the output
+		LuvColorHistogram first;
+		std::string first_file;
+		LuvColorHistogram second;
+		std::string second_file;
+
+		find_two_closest(needle, test_grams, test_files, first, first_file, second, second_file);
+
+		cout << "Image <" << (*files) << "> followed by <" << first_file << "> and <" << second_file << ">" << endl;
+
+		// SHOW IMAGES woo
+		show_images(*files, first_file, second_file);
+	}
+}
+
+
+
 int main(int argc, const char* argv[]) {
 
-	if (argc < 2){
-		cerr<< "Usage: \n"<< argv[0]<< " [folder name]"<< endl;
+	if (argc < 3){
+		cerr<< "Usage: \n"<< argv[0]<< " [train] [test]"<< endl;
 		return -1;
 	}
 
-	path p (argv[1]);
-	if (!verify_folder(p)) return -1;
+	// load train path
+	path train_path (argv[1]);
+
+	if (!verify_folder(train_path))  return -1; 
+
+	// load test path
+	path test_path (argv[2]);
+
+	if (!verify_folder(test_path))  return -1;
 
 
-	vector<LuvColorHistogram> histograms;
-	vector<std::string> filenames;
+	// Load training samples
+	vector<LuvColorHistogram> train_grams;
+	vector<std::string> train_files;
+	load(train_path, train_grams, train_files);
 
-	load(p, histograms, filenames);
-	cout<< "*** loaded "<< histograms.size()<< " samples."<< endl;
+	cout<< "*** loaded "<< train_grams.size()<< " training samples."<< endl;
 
-	cout<< "Comparing histograms"<< endl;
-	compare_hist_vectors(histograms, histograms, filenames);
+	// Load testing samples
+	vector<LuvColorHistogram> test_grams;
+	vector<std::string> test_files;
+	load(test_path, test_grams, test_files);
+
+	cout<< "*** loaded "<< train_grams.size()<< " testing samples."<< endl;
+
+	find_best_grams(train_grams, train_files, test_grams, test_files);
+	// compare_hist_vectors(histograms, histograms, filenames);
 
 	cout<< endl<< endl;
 }
