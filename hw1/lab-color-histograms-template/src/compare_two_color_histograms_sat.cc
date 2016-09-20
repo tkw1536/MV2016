@@ -3,7 +3,7 @@
 #include <limits>
 #include <string>
 #include <boost/filesystem.hpp>
-#include "luv_color_histogram.hh"
+#include "sat_color_histogram.hh"
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
@@ -25,13 +25,13 @@ bool verify_folder(path& p){
 	return true;
 }
 
-void load(path& p, vector<LuvColorHistogram>& hist_vector, vector<std::string>& filenames){
+void load(path& p, vector<SaturatedColorHistogram>& hist_vector, vector<std::string>& filenames){
 	directory_iterator it(p);
 	directory_iterator end_it;
 
 	for(;it != end_it; ++it){
 		// create a new histogram
-		LuvColorHistogram * image = new LuvColorHistogram();
+		SaturatedColorHistogram * image = new SaturatedColorHistogram();
 		image->load(it->path().string());
 
 		// store it and the filename
@@ -62,10 +62,10 @@ void show_images(std::string needle, std::string first, std::string second){
     waitKey(0);
 }
 
-void find_two_closest(const LuvColorHistogram& needle, const vector<LuvColorHistogram>& haystack, const vector<std::string>& hayfiles, LuvColorHistogram& first, std::string& first_file, LuvColorHistogram& second, std::string& second_file) {
+void find_two_closest(const SaturatedColorHistogram& needle, const vector<SaturatedColorHistogram>& haystack, const vector<std::string>& hayfiles, SaturatedColorHistogram& first, std::string& first_file, SaturatedColorHistogram& second, std::string& second_file) {
 
 	// iterators which search
-	vector<LuvColorHistogram>::const_iterator searcher = haystack.begin();
+	vector<SaturatedColorHistogram>::const_iterator searcher = haystack.begin();
 	vector<std::string>::const_iterator files = hayfiles.begin();
 
 	// the maximal distance
@@ -104,21 +104,21 @@ void find_two_closest(const LuvColorHistogram& needle, const vector<LuvColorHist
 	}
 }
 
-void find_best_grams(const vector<LuvColorHistogram>& train_grams, vector<std::string>& train_files, const vector<LuvColorHistogram>& test_grams, const vector<std::string>& test_files){
+void find_best_grams(const vector<SaturatedColorHistogram>& train_grams, vector<std::string>& train_files, const vector<SaturatedColorHistogram>& test_grams, const vector<std::string>& test_files){
 
 	// iterate through the haystack
-	vector<LuvColorHistogram>::const_iterator searcher = test_grams.begin();
+	vector<SaturatedColorHistogram>::const_iterator searcher = test_grams.begin();
 	vector<std::string>::const_iterator files = test_files.begin();
 
 	for (; searcher != test_grams.end(); ++searcher, ++files){
 
 		// the current needle we find the best testing images for
-		LuvColorHistogram needle = *searcher;
+		SaturatedColorHistogram needle = *searcher;
 
 		// all the output
-		LuvColorHistogram first;
+		SaturatedColorHistogram first;
 		std::string first_file;
-		LuvColorHistogram second;
+		SaturatedColorHistogram second;
 		std::string second_file;
 
 		find_two_closest(needle, train_grams, train_files, first, first_file, second, second_file);
@@ -151,14 +151,14 @@ int main(int argc, const char* argv[]) {
 
 
 	// Load training samples
-	vector<LuvColorHistogram> train_grams;
+	vector<SaturatedColorHistogram> train_grams;
 	vector<std::string> train_files;
 	load(train_path, train_grams, train_files);
 
 	cout<< "*** loaded "<< train_grams.size()<< " training samples."<< endl;
 
 	// Load testing samples
-	vector<LuvColorHistogram> test_grams;
+	vector<SaturatedColorHistogram> test_grams;
 	vector<std::string> test_files;
 	load(test_path, test_grams, test_files);
 

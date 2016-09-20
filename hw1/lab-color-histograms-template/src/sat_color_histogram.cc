@@ -50,40 +50,34 @@
 #include <cmath>
 #include <algorithm>
 //#include "color.hh"
-#include "luv_color_histogram.hh"
+#include "sat_color_histogram.hh"
 
 using namespace jir;
 using namespace boost;
 using namespace std;
 using namespace cv;
 
-LuvColorHistogram::LuvColorHistogram(unsigned int nr_bins_l, unsigned int nr_bins_u, unsigned int nr_bins_v){
-	_histSize[0]= int(nr_bins_l);
-	_histSize[1]= int(nr_bins_u);
-	_histSize[2]= int(nr_bins_v);
+SaturatedColorHistogram::SaturatedColorHistogram(unsigned int nr_bins): _nr_samples(0){
+	_histSize[0] = int(nr_bins);
 
-	_l_ranges[0]= 0.0;
-	_l_ranges[1]= 100.0 + 0.01;
-
-	_u_ranges[0]= -134.0;
-	_u_ranges[1]= 220.0 + 0.01;
-
-	_v_ranges[0]= -140.0;
-	_v_ranges[1]= 122.0 + 0.01;
+	_ranges[0] = 0.0;
+	_ranges[1] = 255.0 + 0.01;
 }
 
-void LuvColorHistogram::normalize(void){
+void SaturatedColorHistogram::normalize(void){
 	if (_nr_samples == 0) return;
+
+	/* TODO
 	for (int i_l= 0; i_l < get_nr_bins_l(); ++i_l){
 		for (int i_u= 0; i_u < get_nr_bins_u(); ++i_u){
 			for (int i_v= 0; i_v < get_nr_bins_v(); ++i_v){
 				_hist.at<float>(i_l, i_u, i_v) /= float(_nr_samples);
 			}
 		}
-	}
+	}*/
 }
 
-bool LuvColorHistogram::load(const Mat& color_img, const Mat& mask, bool accumulate){
+bool SaturatedColorHistogram::load(const Mat& color_img, const Mat& mask, bool accumulate){
 	if (!accumulate){
 		_nr_samples= 0;
 	}
@@ -93,19 +87,20 @@ bool LuvColorHistogram::load(const Mat& color_img, const Mat& mask, bool accumul
 	Mat color_img_float(color_img.size(), CV_32FC3);
 	color_img.convertTo(color_img_float, CV_32F, 1.0/255.0); // Each channel BGR is between 0.0 and 1.0 now
 
-	_color_luv.create(color_img_float.size(), CV_32FC3); // The destination should be preallocated.
+	_color_hsv_.create(color_img_float.size(), CV_32FC3); // The destination should be preallocated.
 
 	// Read the documentation of cvtColor:
 	// http://docs.opencv.org/2.4/modules/imgproc/doc/miscellaneous_transformations.html#cvtcolor
-	cvtColor(color_img_float, _color_luv, CV_BGR2Luv);
+	cvtColor(color_img_float, _color_hsv_, CV_BGR2HSV);
 
-	int channels[] = {0, 1, 2};
-	const float* ranges[]= {_l_ranges, _u_ranges, _v_ranges};
+	int channels[] = {0};
+	const float* ranges[]= {_ranges};
 
 	// Read the documentation at:
     // http://docs.opencv.org/2.4/modules/imgproc/doc/histograms.html
-	calcHist( &_color_luv, 1, channels,  mask /* Mat() if no mask */,
-			_hist, 3, _histSize, ranges, true, accumulate);
+	calcHist( &_color_hsv_, 1, channels,  mask /* Mat() if no mask */, _hist, 1, _histSize, ranges, true, accumulate);
+
+	// TODO: Add bins for outside of these ranges
 
 	// cv::normalize() does not work for dim > 3.
 	// cv::normalize( _hist, _normailzed_hist, 0, 1, cv::NORM_MINMAX, -1, Mat());
@@ -122,7 +117,7 @@ bool LuvColorHistogram::load(const Mat& color_img, const Mat& mask, bool accumul
 	return true;
 }
 
-bool LuvColorHistogram::load(const std::string& image_path_name, bool accumulate){
+bool SaturatedColorHistogram::load(const std::string& image_path_name, bool accumulate){
 	Mat color_img= imread(image_path_name.c_str());
 	if(!color_img.data){
 		std::cerr<< "could not open "<< image_path_name<< endl;
@@ -132,46 +127,8 @@ bool LuvColorHistogram::load(const std::string& image_path_name, bool accumulate
 	return load(color_img, Mat(), accumulate);
 }
 
-double LuvColorHistogram::compare(const LuvColorHistogram& other) const{
+double SaturatedColorHistogram::compare(const SaturatedColorHistogram& other) const{
 	double result= 0.0;
 	result= cv::compareHist(_hist, other._hist, CV_COMP_BHATTACHARYYA);
 	return result;
 }
-
-//void LuvColorHistogram::get_histogram_as_vector(Eigen::VectorXf& v) const{
-//	v.resize(get_nr_of_bins());
-//	int ix= 0;
-//	for (int i_l= 0; i_l < get_nr_bins_l(); ++i_l){
-//		for (int i_u= 0; i_u < get_nr_bins_u(); ++i_u){
-//			for (int i_v= 0; i_v < get_nr_bins_v(); ++i_v){
-//				v[ix]= _hist.at<float>(i_l, i_u, i_v);
-//				++ix;
-//			}
-//		}
-//	}
-//}
-
-
-//void LuvColorHistogram::set_histogram_from_vector(const Eigen::VectorXf& v,
-//		unsigned int nr_bins_l, unsigned int nr_bins_u, unsigned int nr_bins_v){
-//	_nr_samples= 1.0; // cannot be determined anymore.
-//	_histSize[0]= int(nr_bins_l);
-//	_histSize[1]= int(nr_bins_u);
-//	_histSize[2]= int(nr_bins_v);
-//	_hist.create(3, _histSize, CV_32F);
-//	if ( v.rows() != get_nr_of_bins() ){
-//		cerr<< "LuvColorHistogram::set_histogram_from_vector size mismatch"<< endl;
-//		return;
-//	}
-//
-//	int ix= 0;
-//	for (int i_l= 0; i_l < get_nr_bins_l(); ++i_l){
-//		for (int i_u= 0; i_u < get_nr_bins_u(); ++i_u){
-//			for (int i_v= 0; i_v < get_nr_bins_v(); ++i_v){
-//				_hist.at<float>(i_l, i_u, i_v)= v[ix];
-//				++ix;
-//			}
-//		}
-//	}
-//
-//}
