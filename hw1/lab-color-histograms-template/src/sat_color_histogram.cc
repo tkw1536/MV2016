@@ -96,6 +96,26 @@ bool SaturatedColorHistogram::load(const Mat& color_img, const Mat& mask, bool a
 	int channels[] = {0};
 	const float* ranges[]= {_ranges};
 
+	// initialise histogram matrix
+	_hist = Mat::zeros(get_nr_bins() + 2, 1, CV_32F);
+
+	// two iterayte over the first two dimensions
+	int x, y;
+
+	for(x = 0; x < _color_hsv_.size[0]; x++){
+		for(y = 0; y < _color_hsv_.size[1]; y++){
+			// TODO: Find out which bin it is and add one to that bin.
+			Vec3d pixel = _color_hsv_.at<Vec3d>(x,y);
+
+			// Saturation
+			if(pixel[1] < 0.05) {
+				_hist.at<double>(1, get_nr_bins()) += 1;
+			} else if(pixel[2] < 0.05) {
+				_hist.at<double>(1, get_nr_bins() + 1) += 1;
+			}
+		}
+	}
+
 	// Read the documentation at:
     // http://docs.opencv.org/2.4/modules/imgproc/doc/histograms.html
 	calcHist( &_color_hsv_, 1, channels,  mask /* Mat() if no mask */, _hist, 1, _histSize, ranges, true, accumulate);
