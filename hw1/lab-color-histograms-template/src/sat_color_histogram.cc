@@ -102,25 +102,39 @@ bool SaturatedColorHistogram::load(const Mat& color_img, const Mat& mask, bool a
 	// two iterayte over the first two dimensions
 	int x, y;
 
+	int bin_size = 360.0 / get_nr_bins();
+	const double WHITE_THRESHOLD = 0.05;
+	const double BLACK_THRESHOLD = 0.0005;
+
+
 	for(x = 0; x < _color_hsv_.size[0]; x++){
 		for(y = 0; y < _color_hsv_.size[1]; y++){
+
 			// TODO: Find out which bin it is and add one to that bin.
 			Vec3d pixel = _color_hsv_.at<Vec3d>(x,y);
 
-			// Saturation
-			if(pixel[1] < 0.05) {
-				_hist.at<double>(1, get_nr_bins()) += 1;
-			} else if(pixel[2] < 0.05) {
+			if(pixel[1] < WHITE_THRESHOLD) {
+				// white pixel (sat < threshold)
+				_hist.at<double>(1, 0) += 1;
+				// cout << "white pixel" << endl;
+			} else if(pixel[2] < BLACK_THRESHOLD) {
+				// black pixel (value < threshold)
 				_hist.at<double>(1, get_nr_bins() + 1) += 1;
+				// cout << "black pixel" << endl;
+			} else {
+
+				// find out the matching bin
+				int bin = (int)(pixel[0] / bin_size);
+				// cout << pixel[0] << endl;
+
+				_hist.at<double>(1, bin + 1)++;
 			}
 		}
 	}
 
 	// Read the documentation at:
     // http://docs.opencv.org/2.4/modules/imgproc/doc/histograms.html
-	calcHist( &_color_hsv_, 1, channels,  mask /* Mat() if no mask */, _hist, 1, _histSize, ranges, true, accumulate);
-
-	// TODO: Add bins for outside of these ranges
+	// calcHist( &_color_hsv_, 1, channels,  mask /* Mat() if no mask */, _hist, 1, _histSize, ranges, true, accumulate);
 
 	// cv::normalize() does not work for dim > 3.
 	// cv::normalize( _hist, _normailzed_hist, 0, 1, cv::NORM_MINMAX, -1, Mat());
