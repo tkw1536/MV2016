@@ -14,14 +14,106 @@ using namespace cv;
 
 int main()
 {
+	// ========================================================
+	// START OF SETTING POINTS
+	// ========================================================
 
-	//-- Localize the object
-	std::vector<Point2f> srcPoints;
+	// SETUP the destination points.
+	// These are sort of regular
 	std::vector<Point2f> dstPoints;
 
-	// Add all the points in order
-	dstPoints.push_back(Point2f(0, 0)); srcPoints.push_back(Point2f(69, 354)); // V
-	// Push all other points A, B, C,...,Z
+	// width and height of a square are constant.
+	// so we use these variables here.
+	const int SQ_WIDTH = 50; // 300 / 6;
+	const int SQ_HEIGHT = 60; // 300 / 5;
+
+	// lower side
+	dstPoints.push_back(Point2f(1*SQ_WIDTH, 0*SQ_HEIGHT)); // A
+	dstPoints.push_back(Point2f(2*SQ_WIDTH, 0*SQ_HEIGHT)); // B
+	dstPoints.push_back(Point2f(3*SQ_WIDTH, 0*SQ_HEIGHT)); // C
+	dstPoints.push_back(Point2f(4*SQ_WIDTH, 0*SQ_HEIGHT)); // D
+	dstPoints.push_back(Point2f(5*SQ_WIDTH, 0*SQ_HEIGHT)); // E
+
+	dstPoints.push_back(Point2f(6*SQ_WIDTH, 0*SQ_HEIGHT)); // F
+
+	// right side
+	dstPoints.push_back(Point2f(6*SQ_WIDTH, 1*SQ_HEIGHT)); // G
+	dstPoints.push_back(Point2f(6*SQ_WIDTH, 2*SQ_HEIGHT)); // H
+	dstPoints.push_back(Point2f(6*SQ_WIDTH, 3*SQ_HEIGHT)); // I
+	dstPoints.push_back(Point2f(6*SQ_WIDTH, 4*SQ_HEIGHT)); // J
+
+	dstPoints.push_back(Point2f(6*SQ_WIDTH, 5*SQ_HEIGHT)); // K
+
+	// upper side
+	dstPoints.push_back(Point2f(5*SQ_WIDTH, 5*SQ_HEIGHT)); // L
+	dstPoints.push_back(Point2f(4*SQ_WIDTH, 5*SQ_HEIGHT)); // M
+	dstPoints.push_back(Point2f(3*SQ_WIDTH, 5*SQ_HEIGHT)); // N
+	dstPoints.push_back(Point2f(2*SQ_WIDTH, 5*SQ_HEIGHT)); // O
+	dstPoints.push_back(Point2f(1*SQ_WIDTH, 5*SQ_HEIGHT)); // P
+
+	dstPoints.push_back(Point2f(0*SQ_WIDTH, 5*SQ_HEIGHT)); // Q
+
+	// left side
+	dstPoints.push_back(Point2f(0*SQ_WIDTH, 4*SQ_HEIGHT)); // R
+	dstPoints.push_back(Point2f(0*SQ_WIDTH, 3*SQ_HEIGHT)); // S
+	dstPoints.push_back(Point2f(0*SQ_WIDTH, 2*SQ_HEIGHT)); // T
+	dstPoints.push_back(Point2f(0*SQ_WIDTH, 1*SQ_HEIGHT)); // U
+
+	dstPoints.push_back(Point2f(0*SQ_WIDTH, 0*SQ_HEIGHT)); // V
+
+	// inside points
+	dstPoints.push_back(Point2f(1*SQ_WIDTH, 1*SQ_HEIGHT)); // W
+	dstPoints.push_back(Point2f(5*SQ_WIDTH, 1*SQ_HEIGHT)); // X
+	dstPoints.push_back(Point2f(5*SQ_WIDTH, 4*SQ_HEIGHT)); // Y
+	dstPoints.push_back(Point2f(1*SQ_WIDTH, 4*SQ_HEIGHT)); // Z
+
+	// SETUP the source points.
+	// These were taken by looking at the image.
+	std::vector<Point2f> srcPoints;
+
+	// lower side
+	srcPoints.push_back(Point2f(158, 358)); // A
+	srcPoints.push_back(Point2f(248, 364)); // B
+	srcPoints.push_back(Point2f(336, 370)); // C
+	srcPoints.push_back(Point2f(426, 376)); // D
+	srcPoints.push_back(Point2f(516, 382)); // E
+
+	srcPoints.push_back(Point2f(609, 388)); // F
+
+	// right side
+	srcPoints.push_back(Point2f(606, 318)); // G
+	srcPoints.push_back(Point2f(598, 256)); // H
+	srcPoints.push_back(Point2f(596, 202)); // I
+	srcPoints.push_back(Point2f(592, 194)); // J
+
+	srcPoints.push_back(Point2f(590, 112)); // K
+
+	// upper side
+	srcPoints.push_back(Point2f(522, 108)); // L
+	srcPoints.push_back(Point2f(453, 106)); // M
+	srcPoints.push_back(Point2f(386, 102)); // N
+	srcPoints.push_back(Point2f(324, 99)); // O
+	srcPoints.push_back(Point2f(256, 96)); // P
+
+	srcPoints.push_back(Point2f(196, 92)); // Q
+
+	// left side
+	srcPoints.push_back(Point2f(172, 134)); // R
+	srcPoints.push_back(Point2f(153, 177)); // S
+	srcPoints.push_back(Point2f(128, 230)); // T
+	srcPoints.push_back(Point2f(99, 286)); // U
+
+	srcPoints.push_back(Point2f(69, 352)); // V
+
+	// inside points
+	srcPoints.push_back(Point2f(183, 291)); // W
+	srcPoints.push_back(Point2f(518, 312)); // X
+	srcPoints.push_back(Point2f(520, 152)); // Y
+	srcPoints.push_back(Point2f(243,  136)); // Z
+
+	// ========================================================
+	// END OF SETTING POINTS
+	// ========================================================
 
 	// Use the OpenCV findHomography to compute the homography matrix H.
 	Mat H;
