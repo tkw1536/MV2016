@@ -24,8 +24,9 @@ int main()
 
 	// width and height of a square are constant.
 	// so we use these variables here.
-	const int SQ_WIDTH = 50; // 300 / 6;
-	const int SQ_HEIGHT = 60; // 300 / 5;
+	// It's really both 60 (see assignment)
+	const int SQ_WIDTH = 60;
+	const int SQ_HEIGHT = 60;
 
 	// lower side
 	dstPoints.push_back(Point2f(1*SQ_WIDTH, 0*SQ_HEIGHT)); // A
