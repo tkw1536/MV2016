@@ -8,5 +8,5 @@ find_package( OpenCV REQUIRED )
 find_package( Boost REQUIRED COMPONENTS system filesystem )
 
 include_directories( include ${OpenCV_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${Eigen3_INCLUDE_DIRS})
-add_executable( circle lm_circle.cpp )
+add_executable( circle src/lm_circle.cpp)
 target_link_libraries( circle ${OpenCV_LIBS} ${Boost_LIBRARIES} ${Boost_FILESYSTEM_LIBRARY} )
