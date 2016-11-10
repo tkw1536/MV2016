@@ -99,23 +99,28 @@ def circle_error(model, point):
     return (np.sqrt((x - x0)**2 + (y - y0)**2) - r) ** 2
 
 
-def main():
-    points = np.loadtxt('pts_to_ransac.txt')
-
+def run(points):
     results = []
 
     N_min = 3
-    i_max = 50
-    tau = 0.2
-    d = 20
+    i_max = 500
+    tau = 0.01
+    d = 30
 
-    while points.shape[0] > N_min:
+    no_model_retries = 20
+
+    while points.shape[0] > d:
         model, error, index =\
                     RANSAC(points, circle_fit, circle_error,
-                    check_if_better_2, N_min, i_max, tau, d)
+                    check_if_better_3, N_min, i_max, tau, d)
 
         if model is None:
-            break
+
+            if no_model_retries == 0:
+                break
+            else:
+                no_model_retries -= 1
+                continue
 
         print(model)
         print(error)
@@ -124,12 +129,25 @@ def main():
 
         results.append({
             "model": model,
+            "points": points[index].tolist(),
             "error": error
         })
 
         # Remove 'used' points from dataset
         points = np.delete(points, index, 0)
 
+    results.append({
+        "model": ((0, 0), 0),
+        "points": points,
+        "error": None
+    })
+
+    return results
+
+def main():
+    points = np.loadtxt('pts_to_ransac.txt')
+
+    results = run(points)
 
     with open('results.json', 'w') as f:
         json.dump(results, f, indent=4)
