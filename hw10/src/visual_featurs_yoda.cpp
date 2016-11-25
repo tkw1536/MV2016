@@ -35,6 +35,10 @@ int main(int argc, char **argv) {
 
   //-- Step 1: Detect the keypoints using SURF
   cv::Ptr<Feature2D> surfer = xfeatures2d::SURF::create(400);
+  // cv::Ptr<Feature2D> sifter = xfeatures2d::SIFT::create();
+
+  // SIFT find -> SURF compute **NO** (REALLY WEIRD)
+  // SURF find --> SIFT detect **NO** (CORE DUMPED)
 
   std::vector<KeyPoint> keypoints_object, keypoints_scene;
   surfer->detect(img_object, keypoints_object);
@@ -51,7 +55,7 @@ int main(int argc, char **argv) {
   // BF: 0.258s
   // No significant difference
 
-  BFMatcher matcher; // FlannBasedMatcher or BFMatcher
+  FlannBasedMatcher matcher; // FlannBasedMatcher or BFMatcher
   std::vector<DMatch> matches;
   matcher.match(descriptors_object, descriptors_scene, matches);
 
@@ -80,10 +84,6 @@ int main(int argc, char **argv) {
   }
 
   Mat img_matches; // The result will be drawn on this concatenated image
-  drawMatches(img_object_color, keypoints_object, img_scene_color,
-              keypoints_scene, good_matches, img_matches, Scalar::all(-1),
-              Scalar::all(-1), vector<char>(),
-              DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS); // DRAW_RICH_KEYPOINTS
 
   //-- Localize the object
   std::vector<Point2f> obj;
@@ -95,7 +95,13 @@ int main(int argc, char **argv) {
     scene.push_back(keypoints_scene[good_matches[i].trainIdx].pt);
   }
 
-  Mat H = findHomography(obj, scene, CV_RANSAC, 2);
+  cv::Mat mask;
+  Mat H = findHomography(obj, scene, CV_RANSAC, 2, mask);
+
+  drawMatches(img_object_color, keypoints_object, img_scene_color,
+              keypoints_scene, good_matches, img_matches, Scalar::all(-1),
+              Scalar::all(-1), mask,
+              DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS); // DRAW_RICH_KEYPOINTS
 
   //-- Get the corners from the image_1 ( the object to be "detected" )
   std::vector<Point2f> obj_corners(4);
