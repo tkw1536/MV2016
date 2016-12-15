@@ -9,7 +9,9 @@
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/nonfree/nonfree.hpp"
+
+/* we are up-to-date */
+#include "opencv2/xfeatures2d.hpp"
 
 
 using namespace cv;
@@ -23,7 +25,6 @@ Mat rotZ(float q) {
 	R.at<double>(0, 1) = -R.at<double>(1, 0);
 	return R;
 }
-
 
 void find_transform(Mat& F_left_right,
 	std::vector<Point2f>& left_points, std::vector<Point2f>& right_points,
@@ -63,20 +64,89 @@ void find_transform(Mat& F_left_right,
 	}
 	cout << endl;
 
-	Mat Sigma, U, Vt;
+	// Magic Matrices W and Wt
+	Mat W(3, 3,  CV_64FC1, Scalar(0.));
+	Mat Wt(3, 3,  CV_64FC1, Scalar(0.));
+
+	W.at<double>(0, 0) = 0;
+	W.at<double>(0, 1) = -1;
+	W.at<double>(0, 2) = 0;
+
+	W.at<double>(1, 0) = 1;
+	W.at<double>(1, 1) = 0;
+	W.at<double>(1, 2) = 0;
+
+	W.at<double>(2, 0) = 0;
+	W.at<double>(2, 1) = 0;
+	W.at<double>(2, 2) = -1;
+
+	Wt.at<double>(0, 0) = 0;
+	Wt.at<double>(0, 1) = 1;
+	Wt.at<double>(0, 2) = 0;
+
+	Wt.at<double>(1, 0) = -1;
+	Wt.at<double>(1, 1) = 0;
+	Wt.at<double>(1, 2) = 0;
+
+	Wt.at<double>(2, 0) = 0;
+	Wt.at<double>(2, 1) = 0;
+	Wt.at<double>(2, 2) = 1;
+
+	// decompose Essential matrix
+	Mat Sigma, U, Vt, Ut;
 	SVD::compute(E_left_right, Sigma, U, Vt);
 
-	Mat t1(3, 1, CV_64F, Scalar(0.)), t2(3, 1, CV_64F, Scalar(0));
-	// We ignore Sigma and force it to be of the form diag(1,1,0).
+    // transpose of U
+    cv::transpose(U, Ut);
 
-	// fill-in: compute t1, t2
+    // We ignore Sigma and force it to be of the form diag(1,1,0).
+    Mat SigmaP(3, 3, CV_64F, Scalar(0.));
+    SigmaP.at<double>(0, 0) = 1;
+    SigmaP.at<double>(1, 1) = 1;
+    SigmaP.at<double>(2, 2) = 0;
+
+    /*
+    Mat SigmaP(3, 3, CV_64F, Scalar(0.));
+    SigmaP.at<double>(0, 0) = Sigma.at<double>(0, 0);
+    SigmaP.at<double>(1, 1) = Sigma.at<double>(1, 0);
+    SigmaP.at<double>(2, 2) = Sigma.at<double>(2, 0);
+     */
+
+    Mat T1(3, 3, CV_64F, Scalar(0.)), T2(3, 3, CV_64F, Scalar(0));
+	Mat t1(3, 1, CV_64F, Scalar(0.)), t2(3, 1, CV_64F, Scalar(0));
+
+    cout << U << endl;
+    cout << W << endl;
+    cout << SigmaP << endl;
+
+	// compute |t1|x and |t2|x
+	T1 = U * W * SigmaP * Ut;
+	T2 = U * Wt * SigmaP * Ut;
+
+    cout << T1 << endl;
+    cout << T2 << endl;
+
+	// extract values for t1, t2
+	t1.at<double>(0, 0) = T1.at<double>(2, 1);
+	t1.at<double>(1, 0) = T1.at<double>(0, 2);
+	t1.at<double>(2, 0) = T1.at<double>(1, 0);
+
+	t2.at<double>(0, 0) = T2.at<double>(2, 1);
+	t2.at<double>(1, 0) = T2.at<double>(0, 2);
+	t2.at<double>(2, 0) = T2.at<double>(1, 0);
+
+
 
 	cout << "Translation: First Solution:" << endl;
 	cout << t1.at<double>(0, 0) << ", " << t1.at<double>(1, 0) << ", " << t1.at<double>(2, 0) << endl;
 	cout << endl;
 
 	Mat R1, R2;
-	// fill-in: compute R1, R2
+
+	// compute R1, R2
+	R1 = U * Wt * Vt;
+	R2 = U * W * Vt;
+
 
 	cout << "Rotation: First Solution: " << endl;
 	for (int i = 0; i < 3; ++i) {
@@ -123,24 +193,24 @@ int main(int argc, char** argv)
 		std::cout << " --(!) Error reading images " << std::endl; return -1;
 	}
 
-	//-- Step 1: Detect the keypoints using SIFT Detector
-	SiftFeatureDetector detector;
+	// lets get schwifty in here
+	cv::Ptr<Feature2D> schwifty = xfeatures2d::SIFT::create();
 
+	//-- Step 1: Detect the keypoints using SIFT Detector
 	std::vector<KeyPoint> keypoints_left, keypoints_right;
 
-	detector.detect(img_left, keypoints_left);
+	schwifty->detect(img_left, keypoints_left);
 	cout << "Finished key-point detection for left-image." << endl;
-	detector.detect(img_right, keypoints_right);
+	schwifty->detect(img_right, keypoints_right);
 	cout << "Finished key-point detection for right-image." << endl;
 
 
 	//-- Step 2: Calculate descriptors (feature vectors)
-	SiftDescriptorExtractor extractor;
 
 	Mat descriptors_left, descriptors_right;
-	extractor.compute(img_left, keypoints_left, descriptors_left);
+	schwifty->compute(img_left, keypoints_left, descriptors_left);
 	cout << "Finished key-point descriptor extractions for left-image." << endl;
-	extractor.compute(img_right, keypoints_right, descriptors_right);
+	schwifty->compute(img_right, keypoints_right, descriptors_right);
 	cout << "Finished key-point descriptor extractions for right-image." << endl;
 
 
