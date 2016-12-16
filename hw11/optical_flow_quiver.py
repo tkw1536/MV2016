@@ -87,7 +87,7 @@ kernel = (1 / (2 * np.pi * (_gauss_sigma ** 2))) * np.exp(
 
 # weighting kernel (also a gaussian)
 nsig = 3
-kernlen = 25
+kernlen = (2*_half_neighborhood_size + 1) ** 2
 interval = (2*nsig+1.)/(kernlen)
 x = np.linspace(-nsig-interval/2., nsig+interval/2., kernlen+1)
 
