@@ -9,7 +9,7 @@ import cv2
 import tqdm
 import numpy as np
 from numpy import linalg as la
-from scipy import signal as sig
+from scipy import signal as sig, stats as sta
 
 import sys
 
@@ -70,6 +70,31 @@ def skip_time(cap, n):
     for _ in range(int(cap.get(cv2.CAP_PROP_FPS)) * n):
         cap.read()
 
+# Make a kernel for partial derivatives
+I = np.repeat([np.arange(_kernel_size)], _kernel_size, axis=0).T
+J = I.T
+
+# derivative w.r.t. x
+gauss_kernel_x = -((J - _k) / (2 * np.pi * _gauss_sigma ** 3)) * np.exp(
+    - ((I - _k) ** 2 + (J - _k) ** 2) / (2 * _gauss_sigma ** 2))
+
+# derivative w.r.t. y
+gauss_kernel_y = gauss_kernel_x.T
+
+kernel = (1 / (2 * np.pi * (_gauss_sigma ** 2))) * np.exp(
+    -((I - _k) ** 2 + (J - _k) ** 2) / (2 * _gauss_sigma ** 2))
+
+
+# weighting kernel (also a gaussian)
+nsig = 3
+kernlen = 25
+interval = (2*nsig+1.)/(kernlen)
+x = np.linspace(-nsig-interval/2., nsig+interval/2., kernlen+1)
+
+w1d = np.diff(sta.norm.cdf(x))
+w_raw = np.sqrt(np.outer(w1d, w1d))
+_W = w_raw/w_raw.sum()
+_W_T_W = _W.T.dot(_W)
 
 def process_frame(current_mat, next_mat):
     """ Processes a single from from the original image"""
@@ -132,8 +157,8 @@ def process_frame(current_mat, next_mat):
         b = np.hstack([Its]).T
 
         # we compute the previous As and Bs from the code
-        A_code = A.T.dot(A)
-        B_code = A.T.dot(b)
+        A_code = A.T.dot(_W_T_W).dot(A)
+        B_code = A.T.dot(_W_T_W).dot(b)
 
         # compute the actual result
         Ainv = la.pinv(A_code)
@@ -144,21 +169,6 @@ def process_frame(current_mat, next_mat):
         v_y[c] = result[0]
 
     return quiver(current_mat, corners_current, v_x, v_y, _color)
-
-# Make a kernel for partial derivatives
-I = np.repeat([np.arange(_kernel_size)], _kernel_size, axis=0).T
-J = I.T
-
-# derivative w.r.t. x
-gauss_kernel_x = -((J - _k) / (2 * np.pi * _gauss_sigma ** 3)) * np.exp(
-    - ((I - _k) ** 2 + (J - _k) ** 2) / (2 * _gauss_sigma ** 2))
-
-# derivative w.r.t. y
-gauss_kernel_y = gauss_kernel_x.T
-
-kernel = (1 / (2 * np.pi * (_gauss_sigma ** 2))) * np.exp(
-    -((I - _k) ** 2 + (J - _k) ** 2) / (2 * _gauss_sigma ** 2))
-
 
 def main():
     """ Main entry point """
