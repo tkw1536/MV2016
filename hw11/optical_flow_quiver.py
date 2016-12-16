@@ -1,46 +1,44 @@
+"""
+
+optical_flow_quiver.py
+
+Adapted and optimised version based on the original Matlab code
+"""
+
 import cv2
+import tqdm
 import numpy as np
 from numpy import linalg as la
 from scipy import signal as sig
 
-from matplotlib import pyplot as plt
-
 import sys
 
-# Settings
-_neighborhood_size = 5
-_half_neighborhood_size = _neighborhood_size // 2
-_gauss_sigma = 1
+############
+# CONFIG
+############
+
+# Sit
+_gauss_sigma = 1  # Sigma the Gaussian Kernels
 _kernel_size = 6 * _gauss_sigma + 1
 _k = int((_kernel_size - 1) / 2)
-_num_corners = 100
-_corner_quality_level = 0.001
-_corner_min_distance = 10
 
-# read video
-vid = cv2.VideoCapture()
-vid.open("videos/cars_at_an_intersection_hirez.mp4")
+# Settings for corner detection
+_num_corners = 100  # (Maximal) number of corners to detect per frame
+_corner_quality_level = 0.001  # Quality measure for corners to detect
+_corner_min_distance = 10  # Minimal distance between detected corners
 
-# get props
-fps = vid.get(cv2.CAP_PROP_FPS)
-vWidth = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-vHeight = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fourcc = vid.get(cv2.CAP_PROP_FOURCC)
+# Neighbourhood for direction detection
+_neighborhood_size = 5
+_half_neighborhood_size = _neighborhood_size // 2
 
-vidWriter = cv2.VideoWriter('cars_at_an_intersection_optical_flow.avi',
-                            int(fourcc), 0.75 * fps, (vWidth, vHeight))
+# color for the quiver plot
+_color = 1
 
-# HACK: Skip ahead one second
-for _ in range(int(fps) * 10):
-    vid.read()
 
-# read the first matrix
-current_mat = cv2.cvtColor(vid.read()[1], cv2.COLOR_BGR2GRAY)
+def quiver(img, pts, vx, vy, color=1):
+    """ Makes a quiver plot on top of an existing image """
 
-def quiver(image, pts, vx, vy, color=1):
-    """ Creates a quiver mask"""
-
-    (width, height) = image.shape
+    (width, height) = img.shape
 
     for c in range(pts.shape[0]):
         x = pts[c, 0, 0]
@@ -55,33 +53,26 @@ def quiver(image, pts, vx, vy, color=1):
         if xe < 0 or ye < 0 or xe >= height or ye >= width:
             continue
 
-        image = cv2.line(image, (x, y), (xe, ye), color)
+        img = cv2.line(img, (x, y), (xe, ye), color)
 
-    return image
-
-# Make a kernel for partial derivatives
-I = np.repeat([np.arange(_kernel_size)], _kernel_size, axis=0).T
-J = I.T
-
-# derivative w.r.t. x
-gauss_kernel_x = -((J - _k) / (2 * np.pi * _gauss_sigma ** 3)) * np.exp(
-    - ((I - _k) ** 2 + (J - _k) ** 2) / (2 * _gauss_sigma ** 2))
-
-# derivative w.r.t. y
-gauss_kernel_y = gauss_kernel_x.T
-
-kernel = (1 / (2 * np.pi * (_gauss_sigma ** 2))) * np.exp(
-            -((I - _k) ** 2 + (J - _k) ** 2) / (2 * _gauss_sigma ** 2))
+    return img
 
 
-while True:
-    ret, next_frame = vid.read()
+def pad2d(img, width, fill=0):
+    """ Pads a two-dimensional image with a constant boundary"""
 
-    if not ret:
-        break
+    return np.lib.pad(img, (width, width), 'constant', constant_values=fill)
 
-    # grab the next frame
-    next_mat = cv2.cvtColor(next_frame, cv2.COLOR_BGR2GRAY)
+
+def skip_time(cap, n):
+    """ Skips a given amount of seconds in a VideoCapture """
+
+    for _ in range(int(cap.get(cv2.CAP_PROP_FPS)) * n):
+        cap.read()
+
+
+def process_frame(current_mat, next_mat):
+    """ Processes a single from from the original image"""
 
     (xs, ys) = next_mat.shape
 
@@ -102,8 +93,10 @@ while True:
                                               _corner_min_distance,
                                               useHarrisDetector=False)
 
+    # if we have no corners, return the original frame
     if corners_current is None:
-        corners_current = [[[]]]
+        return current_mat
+
     corners_current = np.array(corners_current).astype(int)
 
     # smooth the images
@@ -116,44 +109,98 @@ while True:
     v_x = np.zeros((corners_current.shape[0], 1))
     v_y = np.zeros((corners_current.shape[0], 1))
 
-    for c in range(corners_current.shape[0]):
-        A = np.zeros((2, 2))
-        B = np.zeros((2, 1))
+    # pad zeros all around our derivatives
+    Ix = pad2d(Ix, _half_neighborhood_size)
+    Iy = pad2d(Iy, _half_neighborhood_size)
+    It = pad2d(It, _half_neighborhood_size)
 
+    for c in range(corners_current.shape[0]):
         i = corners_current[c, 0, 1]
         j = corners_current[c, 0, 0]
 
-        for m in range(i - _half_neighborhood_size,
-                       i + _half_neighborhood_size + 1):
-            for n in range(j - _half_neighborhood_size,
-                           j + _half_neighborhood_size + 1):
+        Ixs = Ix[i:i + 2 * _half_neighborhood_size + 1,
+              j:j + 2 * _half_neighborhood_size + 1].flatten()
 
-                if (m < 0) or m >= xs or n < 0 or n >= ys:
-                    continue
+        Iys = Iy[i:i + 2 * _half_neighborhood_size + 1,
+              j:j + 2 * _half_neighborhood_size + 1].flatten()
 
-                A[0, 0] += Ix[m, n] * Ix[m, n]
-                A[0, 1] += Ix[m, n] * Iy[m, n]
-                A[1, 0] += Ix[m, n] * Iy[m, n]
-                A[1, 1] += Iy[m, n] * Iy[m, n]
+        Its = It[i:i + 2 * _half_neighborhood_size + 1,
+              j:j + 2 * _half_neighborhood_size + 1].flatten()
 
-                B[0, 0] += Ix[m, n] * It[m, n]
-                B[1, 0] += Iy[m, n] * It[m, n]
+        # find A, b by just smartly stacking the above
+        A = np.vstack([Ixs, Iys]).T
+        b = np.hstack([Its]).T
 
-        Ainv = la.pinv(A)
-        result = Ainv.dot(B)
+        # we compute the previous As and Bs from the code
+        A_code = A.T.dot(A)
+        B_code = A.T.dot(b)
 
-        v_x[c] = result[1, 0]
-        v_y[c] = result[0, 0]
+        # compute the actual result
+        Ainv = la.pinv(A_code)
+        result = Ainv.dot(B_code)
 
-    image = quiver(current_mat, corners_current, v_x, v_y)
-    frame = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        # and add it to the velocity
+        v_x[c] = result[1]
+        v_y[c] = result[0]
 
-    vidWriter.write(frame)
+    return quiver(current_mat, corners_current, v_x, v_y, _color)
 
-    sys.stdout.write("*")
-    sys.stdout.flush()
+# Make a kernel for partial derivatives
+I = np.repeat([np.arange(_kernel_size)], _kernel_size, axis=0).T
+J = I.T
 
-    # cv2.imshow("frame", current_mat.astype(np.uint))
-    # cv2.waitKey(1)
+# derivative w.r.t. x
+gauss_kernel_x = -((J - _k) / (2 * np.pi * _gauss_sigma ** 3)) * np.exp(
+    - ((I - _k) ** 2 + (J - _k) ** 2) / (2 * _gauss_sigma ** 2))
 
-    current_mat = next_mat
+# derivative w.r.t. y
+gauss_kernel_y = gauss_kernel_x.T
+
+kernel = (1 / (2 * np.pi * (_gauss_sigma ** 2))) * np.exp(
+    -((I - _k) ** 2 + (J - _k) ** 2) / (2 * _gauss_sigma ** 2))
+
+
+def main():
+    """ Main entry point """
+
+    # read video
+    vid = cv2.VideoCapture()
+    vid.open("videos/cars_at_an_intersection_hirez.mp4")
+
+    # get props
+    fps = vid.get(cv2.CAP_PROP_FPS)
+    vWidth = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    vHeight = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fourcc = vid.get(cv2.CAP_PROP_FOURCC)
+    frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    vidWriter = cv2.VideoWriter('cars_at_an_intersection_optical_flow.avi',
+                                int(fourcc), 0.75 * fps, (vWidth, vHeight))
+
+    # read the first matrix
+    current_mat = cv2.cvtColor(vid.read()[1], cv2.COLOR_BGR2GRAY)
+
+    T = tqdm.tqdm(total=frames - 1)
+
+    while True:
+        ret, next_frame = vid.read()
+
+        if not ret:
+            break
+
+        # grab the next frame
+        next_mat = cv2.cvtColor(next_frame, cv2.COLOR_BGR2GRAY)
+
+        image = process_frame(current_mat, next_mat)
+        frame = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+        vidWriter.write(frame)
+
+        current_mat = next_mat
+        T.update(1)
+
+    T.close()
+
+
+if __name__ == '__main__':
+    main()
